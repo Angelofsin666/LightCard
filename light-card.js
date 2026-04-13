@@ -13,18 +13,21 @@ class LightCardEditor extends HTMLElement {
   }
 
   setConfig(config) {
-    const prevLightCount = (this._config.lights || []).length;
-    const newLightCount  = (config.lights || []).length;
+    const prevCount = (this._config.lights || []).length;
+    const newCount  = (config.lights || []).length;
     this._config = { ...config };
 
-    // Se cambia solo il contenuto delle luci (non il numero),
-    // aggiorna solo i valori senza ricostruire il DOM
-    if (this._built && prevLightCount === newLightCount) {
-      this._updateLightValues();
-      this._updateStaticSelectors();
+    if (!this._built) {
+      this._refresh();
       return;
     }
-    this._refresh();
+
+    // Aggiorna sempre i selettori statici
+    this._updateStaticSelectors();
+
+    // Per le luci: se il numero è uguale non toccare il DOM (selettori aperti!)
+    // Se cambia il numero (aggiungi/rimuovi) ricostruisce solo le righe necessarie
+    this._renderLights();
   }
 
   set hass(hass) {
@@ -190,12 +193,29 @@ class LightCardEditor extends HTMLElement {
   _renderLights() {
     const list = this.shadowRoot.getElementById('lights-list');
     if (!list) return;
-    list.innerHTML = '';
     const lights = this._config.lights || [];
 
+    // ── Rimuovi solo le righe in eccesso (dalla fine) ──
+    const existingRows = [...list.querySelectorAll('.light-row')];
+    for (let i = existingRows.length - 1; i >= lights.length; i--) {
+      existingRows[i].remove();
+    }
+
     lights.forEach((light, i) => {
+      // ── Riga già esistente: aggiorna solo i valori, NON toccare i selettori aperti ──
+      const existing = list.querySelector(`.light-row[data-idx="${i}"]`);
+      if (existing) {
+        existing.querySelector('.light-num').textContent = i + 1;
+        // Aggiorna hass ma NON il value se il selettore potrebbe essere aperto
+        const sels = existing.querySelectorAll('ha-selector');
+        sels.forEach(s => { s.hass = this._hass; });
+        return;
+      }
+
+      // ── Crea nuova riga ──
       const row = document.createElement('div');
       row.className = 'light-row';
+      row.dataset.idx = i;
 
       const num = document.createElement('span');
       num.className = 'light-num';
@@ -204,7 +224,6 @@ class LightCardEditor extends HTMLElement {
       const inputs = document.createElement('div');
       inputs.className = 'light-row-inputs';
 
-      // Entity picker
       const selEntity = document.createElement('ha-selector');
       selEntity.hass     = this._hass;
       selEntity.selector = { entity: { domain: 'light' } };
@@ -212,10 +231,9 @@ class LightCardEditor extends HTMLElement {
       selEntity.value    = light.entity || '';
       selEntity.addEventListener('value-changed', e => {
         e.stopPropagation();
-        this._updateLight(i, 'entity', e.detail.value);
+        this._updateLight(parseInt(row.dataset.idx), 'entity', e.detail.value);
       });
 
-      // Nome
       const selName = document.createElement('ha-selector');
       selName.hass     = this._hass;
       selName.selector = { text: {} };
@@ -223,10 +241,9 @@ class LightCardEditor extends HTMLElement {
       selName.value    = light.name || '';
       selName.addEventListener('value-changed', e => {
         e.stopPropagation();
-        this._updateLight(i, 'name', e.detail.value);
+        this._updateLight(parseInt(row.dataset.idx), 'name', e.detail.value);
       });
 
-      // Icona
       const selIcon = document.createElement('ha-selector');
       selIcon.hass     = this._hass;
       selIcon.selector = { icon: {} };
@@ -234,20 +251,19 @@ class LightCardEditor extends HTMLElement {
       selIcon.value    = light.icon || 'mdi:lightbulb';
       selIcon.addEventListener('value-changed', e => {
         e.stopPropagation();
-        this._updateLight(i, 'icon', e.detail.value);
+        this._updateLight(parseInt(row.dataset.idx), 'icon', e.detail.value);
       });
 
       inputs.appendChild(selEntity);
       inputs.appendChild(selName);
       inputs.appendChild(selIcon);
 
-      // Rimuovi
       const btnRemove = document.createElement('button');
       btnRemove.className = 'btn-remove';
       btnRemove.innerHTML = '✕';
       btnRemove.addEventListener('click', () => {
         const newLights = [...(this._config.lights || [])];
-        newLights.splice(i, 1);
+        newLights.splice(parseInt(row.dataset.idx), 1);
         this._changed('lights', newLights);
       });
 
@@ -257,6 +273,7 @@ class LightCardEditor extends HTMLElement {
       list.appendChild(row);
     });
   }
+
 
   _updateLight(index, key, value) {
     const lights = [...(this._config.lights || [])];

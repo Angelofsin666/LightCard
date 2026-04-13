@@ -27,6 +27,13 @@ class LightCardEditor extends HTMLElement {
     const c = this._config;
     const root = this.shadowRoot;
 
+    // Se _renderLights è in corso (selettore aperto), aggiorna solo i valori
+    // senza toccare il DOM della lista luci
+    if (this._updatingLight) {
+      this._updateLightValues();
+      return;
+    }
+
     if (!root.querySelector('.form')) {
       root.innerHTML = `
         <style>
@@ -122,7 +129,29 @@ class LightCardEditor extends HTMLElement {
       colorInput.value = c.color || '#f59e0b';
     }
 
+    // Salva scroll prima di ricostruire la lista
+    const dialog = this.closest('ha-dialog, mwc-dialog, .mdc-dialog__content, hui-dialog-edit-card');
+    const scrollEl = dialog ? dialog.querySelector('.content, .mdc-dialog__content') || dialog : null;
+    const scrollTop = scrollEl ? scrollEl.scrollTop : 0;
+
     this._renderLights();
+
+    // Ripristina scroll dopo il render
+    if (scrollEl) requestAnimationFrame(() => { scrollEl.scrollTop = scrollTop; });
+  }
+
+  // Aggiorna solo hass e valori dei selettori già esistenti, senza ricostruire il DOM
+  _updateLightValues() {
+    const root = this.shadowRoot;
+    const lights = this._config.lights || [];
+    const rows = root.querySelectorAll('.light-row');
+    rows.forEach((row, i) => {
+      if (!lights[i]) return;
+      const sels = row.querySelectorAll('ha-selector');
+      if (sels[0]) { sels[0].hass = this._hass; sels[0].value = lights[i].entity || ''; }
+      if (sels[1]) { sels[1].hass = this._hass; sels[1].value = lights[i].name   || ''; }
+      if (sels[2]) { sels[2].hass = this._hass; sels[2].value = lights[i].icon   || 'mdi:lightbulb'; }
+    });
   }
 
   _setupSelector(id, selector, label, key) {
@@ -215,9 +244,12 @@ class LightCardEditor extends HTMLElement {
   }
 
   _updateLight(index, key, value) {
+    this._updatingLight = true;
     const lights = [...(this._config.lights || [])];
     lights[index] = { ...lights[index], [key]: value };
     this._changed('lights', lights);
+    // Reset flag dopo un tick, quando il selettore ha finito
+    setTimeout(() => { this._updatingLight = false; }, 100);
   }
 
   _changed(key, value) {

@@ -1,9 +1,3 @@
-/**
- * Light Card — Custom card per Home Assistant
- * Versione: 1.0.0
- * Compatibile con HACS
- */
-
 // ─── EDITOR VISIVO ────────────────────────────────────────────────────────────
 class LightCardEditor extends HTMLElement {
   constructor() {
@@ -13,277 +7,202 @@ class LightCardEditor extends HTMLElement {
   }
 
   setConfig(config) {
-    const prevCount = (this._config.lights || []).length;
-    const newCount  = (config.lights || []).length;
     this._config = { ...config };
-
-    if (!this._built) {
-      this._refresh();
-      return;
+    if (this._form) {
+      this._form.data = this._buildFormData();
     }
-
-    // Aggiorna sempre i selettori statici
-    this._updateStaticSelectors();
-
-    // Per le luci: se il numero è uguale non toccare il DOM (selettori aperti!)
-    // Se cambia il numero (aggiungi/rimuovi) ricostruisce solo le righe necessarie
-    this._renderLights();
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._refresh();
+    if (!this._built) this._build();
+    if (this._form) this._form.hass = hass;
   }
 
-  _refresh() {
-    if (!this._hass || !this._config) return;
-    const c = this._config;
+  _buildFormData() {
+    // ha-form vuole un oggetto flat — le luci le gestiamo separatamente
+    return {
+      name:      this._config.name      || '',
+      subtitle:  this._config.subtitle  || '',
+      floor_id:  this._config.floor_id  || '',
+      color:     this._config.color     || '#f59e0b',
+    };
+  }
+
+  _build() {
+    this._built = true;
     const root = this.shadowRoot;
 
-    if (!root.querySelector('.form')) {
-      root.innerHTML = `
-        <style>
-          :host { display: block; }
-          .form { display: flex; flex-direction: column; gap: 20px; padding: 4px 0; }
-          .section-title {
-            font-size: 11px; font-weight: 700; color: #9ca3af;
-            text-transform: uppercase; letter-spacing: 0.1em;
-            border-bottom: 1px solid #f3f4f6; padding-bottom: 6px;
-          }
-          ha-selector { display: block; }
-          .color-wrap { display: flex; flex-direction: column; gap: 8px; }
-          .color-label { font-size: 12px; font-weight: 600; color: #374151; }
-          .color-row { display: flex; align-items: center; gap: 12px; }
-          input[type=color] {
-            width: 44px; height: 44px; border-radius: 12px;
-            border: 2px solid #e5e7eb; cursor: pointer; padding: 2px; background: none;
-          }
-          .color-hint { font-size: 12px; color: #9ca3af; }
-          .lights-section { display: flex; flex-direction: column; gap: 12px; }
-          .light-row {
-            display: flex; align-items: center; gap: 8px;
-            background: #f9fafb; border-radius: 12px; padding: 10px;
-            border: 1px solid #e5e7eb;
-          }
-          .light-row ha-selector { flex: 1; }
-          .light-row-inputs { display: flex; flex-direction: column; gap: 8px; flex: 1; }
-          .btn-remove {
-            width: 32px; height: 32px; border-radius: 8px;
-            background: #fee2e2; border: none; cursor: pointer;
-            color: #ef4444; font-size: 16px; display: flex;
-            align-items: center; justify-content: center; flex-shrink: 0;
-            transition: background 0.2s;
-          }
-          .btn-remove:hover { background: #fecaca; }
-          .btn-add {
-            display: flex; align-items: center; justify-content: center; gap: 6px;
-            padding: 10px; border-radius: 12px;
-            background: #eff6ff; border: 1.5px dashed #93c5fd;
-            color: #3b82f6; font-size: 13px; font-weight: 600;
-            cursor: pointer; transition: background 0.2s;
-            font-family: inherit;
-          }
-          .btn-add:hover { background: #dbeafe; }
-          .light-num {
-            font-size: 11px; font-weight: 700; color: #9ca3af;
-            width: 20px; flex-shrink: 0; text-align: center;
-          }
-        </style>
-        <div class="form">
-          <div class="section-title">Generale</div>
-          <ha-selector id="sel-name"></ha-selector>
-          <ha-selector id="sel-subtitle"></ha-selector>
-          <ha-selector id="sel-floor"></ha-selector>
+    root.innerHTML = `
+      <style>
+        :host { display: block; }
+        .editor-wrap { display: flex; flex-direction: column; gap: 20px; padding: 4px 0; }
+        .section-title {
+          font-size: 11px; font-weight: 700; color: #9ca3af;
+          text-transform: uppercase; letter-spacing: 0.1em;
+          border-bottom: 1px solid #f3f4f6; padding-bottom: 6px;
+        }
+        ha-form { display: block; }
+        .color-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+        .color-label { font-size: 12px; font-weight: 600; color: #374151; }
+        input[type=color] {
+          width: 44px; height: 44px; border-radius: 12px;
+          border: 2px solid #e5e7eb; cursor: pointer; padding: 2px; background: none;
+        }
+        .color-hint { font-size: 12px; color: #9ca3af; }
+        .lights-section { display: flex; flex-direction: column; gap: 10px; }
+        .light-row {
+          background: #f9fafb; border-radius: 12px; padding: 12px;
+          border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 10px;
+        }
+        .light-row-header {
+          display: flex; align-items: center; justify-content: space-between;
+        }
+        .light-num {
+          font-size: 11px; font-weight: 700; color: #9ca3af;
+        }
+        .btn-remove {
+          width: 28px; height: 28px; border-radius: 8px;
+          background: #fee2e2; border: none; cursor: pointer;
+          color: #ef4444; font-size: 14px; display: flex;
+          align-items: center; justify-content: center;
+          transition: background 0.2s;
+        }
+        .btn-remove:hover { background: #fecaca; }
+        .btn-add {
+          display: flex; align-items: center; justify-content: center; gap: 6px;
+          padding: 10px; border-radius: 12px;
+          background: #eff6ff; border: 1.5px dashed #93c5fd;
+          color: #3b82f6; font-size: 13px; font-weight: 600;
+          cursor: pointer; transition: background 0.2s; font-family: inherit;
+        }
+        .btn-add:hover { background: #dbeafe; }
+      </style>
+      <div class="editor-wrap">
+        <div class="section-title">Generale</div>
+        <ha-form id="ha-form-main"></ha-form>
 
-          <div class="section-title">Aspetto</div>
-          <div class="color-wrap">
-            <span class="color-label">Colore tema</span>
-            <div class="color-row">
-              <input type="color" id="color-input">
-              <span class="color-hint">Colore luci accese, badge e icone</span>
-            </div>
+        <div class="section-title">Aspetto</div>
+        <div>
+          <div class="color-label">Colore tema</div>
+          <div class="color-row">
+            <input type="color" id="color-input" value="#f59e0b">
+            <span class="color-hint">Colore luci accese, badge e icone</span>
           </div>
-
-          <div class="section-title">Luci</div>
-          <div class="lights-section" id="lights-list"></div>
-          <button class="btn-add" id="btn-add-light">+ Aggiungi luce</button>
         </div>
-      `;
 
-      // Selettori statici
-      this._setupSelector('sel-name',     { text: {} },   'Nome card', 'name');
-      this._setupSelector('sel-subtitle', { text: {} },   'Sottotitolo (es. Luci esterne)', 'subtitle');
-      this._setupSelector('sel-floor',    { floor: {} },  'Piano / Area per toggle globale', 'floor_id');
+        <div class="section-title">Luci</div>
+        <div class="lights-section" id="lights-list"></div>
+        <button class="btn-add" id="btn-add-light">+ Aggiungi luce</button>
+      </div>
+    `;
 
-      root.getElementById('color-input').addEventListener('input', e => {
-        this._changed('color', e.target.value);
-      });
+    // ha-form principale per i campi statici
+    const form = root.getElementById('ha-form-main');
+    form.hass   = this._hass;
+    form.schema = [
+      { name: 'name',     selector: { text: {} },   label: 'Nome card' },
+      { name: 'subtitle', selector: { text: {} },   label: 'Sottotitolo' },
+      { name: 'floor_id', selector: { floor: {} },  label: 'Piano/Area per toggle globale' },
+    ];
+    form.data = this._buildFormData();
+    form.computeLabel = s => s.label;
+    form.addEventListener('value-changed', e => {
+      e.stopPropagation();
+      const d = e.detail.value;
+      this._config = { ...this._config, ...d };
+      this._fireChanged();
+    });
+    this._form = form;
 
-      root.getElementById('btn-add-light').addEventListener('click', () => {
-        const lights = [...(this._config.lights || []), { entity: '', name: '', icon: 'mdi:lightbulb' }];
-        this._changed('lights', lights);
-      });
-      this._built = true;
-    }
+    // Color picker
+    root.getElementById('color-input').value = this._config.color || '#f59e0b';
+    root.getElementById('color-input').addEventListener('input', e => {
+      this._config = { ...this._config, color: e.target.value };
+      this._fireChanged();
+    });
 
-    // Aggiorna selettori statici
-    this._updateSelector('sel-name',     { text: {} },  'Nome card',                          c.name     || '');
-    this._updateSelector('sel-subtitle', { text: {} },  'Sottotitolo (es. Luci esterne)',     c.subtitle || '');
-    this._updateSelector('sel-floor',    { floor: {} }, 'Piano / Area per toggle globale',    c.floor_id || '');
-
-    const colorInput = root.getElementById('color-input');
-    if (colorInput && document.activeElement !== colorInput) {
-      colorInput.value = c.color || '#f59e0b';
-    }
-
-    // Salva scroll prima di ricostruire la lista
-    const dialog = this.closest('ha-dialog, mwc-dialog, .mdc-dialog__content, hui-dialog-edit-card');
-    const scrollEl = dialog ? dialog.querySelector('.content, .mdc-dialog__content') || dialog : null;
-    const scrollTop = scrollEl ? scrollEl.scrollTop : 0;
+    // Aggiungi luce
+    root.getElementById('btn-add-light').addEventListener('click', () => {
+      const lights = [...(this._config.lights || []), { entity: '', name: '', icon: 'mdi:lightbulb' }];
+      this._config = { ...this._config, lights };
+      this._fireChanged();
+      this._renderLights();
+    });
 
     this._renderLights();
-
-    // Ripristina scroll dopo il render
-    if (scrollEl) requestAnimationFrame(() => { scrollEl.scrollTop = scrollTop; });
-  }
-
-  // Aggiorna solo hass e valori dei selettori già esistenti, senza ricostruire il DOM
-  _updateLightValues() {
-    const root = this.shadowRoot;
-    const lights = this._config.lights || [];
-    const rows = root.querySelectorAll('.light-row');
-    rows.forEach((row, i) => {
-      if (!lights[i]) return;
-      const sels = row.querySelectorAll('ha-selector');
-      if (sels[0]) { sels[0].hass = this._hass; sels[0].value = lights[i].entity || ''; }
-      if (sels[1]) { sels[1].hass = this._hass; sels[1].value = lights[i].name   || ''; }
-      if (sels[2]) { sels[2].hass = this._hass; sels[2].value = lights[i].icon   || 'mdi:lightbulb'; }
-    });
-  }
-
-  _updateStaticSelectors() {
-    const c = this._config;
-    this._updateSelector('sel-name',     { text: {} },  'Nome card',                      c.name     || '');
-    this._updateSelector('sel-subtitle', { text: {} },  'Sottotitolo (es. Luci esterne)', c.subtitle || '');
-    this._updateSelector('sel-floor',    { floor: {} }, 'Piano / Area per toggle globale', c.floor_id || '');
-    const colorInput = this.shadowRoot.getElementById('color-input');
-    if (colorInput && document.activeElement !== colorInput) {
-      colorInput.value = c.color || '#f59e0b';
-    }
-  }
-
-  _setupSelector(id, selector, label, key) {
-    const el = this.shadowRoot.getElementById(id);
-    if (!el) return;
-    el.addEventListener('value-changed', e => {
-      e.stopPropagation();
-      this._changed(key, e.detail.value);
-    });
-  }
-
-  _updateSelector(id, selector, label, value) {
-    const el = this.shadowRoot.getElementById(id);
-    if (!el) return;
-    el.hass     = this._hass;
-    el.selector = selector;
-    el.label    = label;
-    el.value    = value;
   }
 
   _renderLights() {
-    const list = this.shadowRoot.getElementById('lights-list');
+    const root = this.shadowRoot;
+    const list = root.getElementById('lights-list');
     if (!list) return;
     const lights = this._config.lights || [];
 
-    // ── Rimuovi solo le righe in eccesso (dalla fine) ──
-    const existingRows = [...list.querySelectorAll('.light-row')];
-    for (let i = existingRows.length - 1; i >= lights.length; i--) {
-      existingRows[i].remove();
+    // Rimuovi righe in eccesso
+    while (list.children.length > lights.length) {
+      list.removeChild(list.lastChild);
     }
 
     lights.forEach((light, i) => {
-      // ── Riga già esistente: aggiorna solo i valori, NON toccare i selettori aperti ──
-      const existing = list.querySelector(`.light-row[data-idx="${i}"]`);
-      if (existing) {
-        existing.querySelector('.light-num').textContent = i + 1;
-        // Aggiorna hass ma NON il value se il selettore potrebbe essere aperto
-        const sels = existing.querySelectorAll('ha-selector');
-        sels.forEach(s => { s.hass = this._hass; });
-        return;
-      }
+      // Riga già esistente — non toccare nulla
+      if (list.children[i]) return;
 
-      // ── Crea nuova riga ──
+      // Crea nuova riga con ha-form per i 3 campi
       const row = document.createElement('div');
       row.className = 'light-row';
-      row.dataset.idx = i;
 
+      const header = document.createElement('div');
+      header.className = 'light-row-header';
       const num = document.createElement('span');
       num.className = 'light-num';
-      num.textContent = i + 1;
-
-      const inputs = document.createElement('div');
-      inputs.className = 'light-row-inputs';
-
-      const selEntity = document.createElement('ha-selector');
-      selEntity.hass     = this._hass;
-      selEntity.selector = { entity: { domain: 'light' } };
-      selEntity.label    = 'Entità luce';
-      selEntity.value    = light.entity || '';
-      selEntity.addEventListener('value-changed', e => {
-        e.stopPropagation();
-        this._updateLight(parseInt(row.dataset.idx), 'entity', e.detail.value);
-      });
-
-      const selName = document.createElement('ha-selector');
-      selName.hass     = this._hass;
-      selName.selector = { text: {} };
-      selName.label    = 'Nome pulsante';
-      selName.value    = light.name || '';
-      selName.addEventListener('value-changed', e => {
-        e.stopPropagation();
-        this._updateLight(parseInt(row.dataset.idx), 'name', e.detail.value);
-      });
-
-      const selIcon = document.createElement('ha-selector');
-      selIcon.hass     = this._hass;
-      selIcon.selector = { icon: {} };
-      selIcon.label    = 'Icona';
-      selIcon.value    = light.icon || 'mdi:lightbulb';
-      selIcon.addEventListener('value-changed', e => {
-        e.stopPropagation();
-        this._updateLight(parseInt(row.dataset.idx), 'icon', e.detail.value);
-      });
-
-      inputs.appendChild(selEntity);
-      inputs.appendChild(selName);
-      inputs.appendChild(selIcon);
-
+      num.textContent = `Luce ${i + 1}`;
       const btnRemove = document.createElement('button');
       btnRemove.className = 'btn-remove';
       btnRemove.innerHTML = '✕';
       btnRemove.addEventListener('click', () => {
+        const idx = [...list.children].indexOf(row);
         const newLights = [...(this._config.lights || [])];
-        newLights.splice(parseInt(row.dataset.idx), 1);
-        this._changed('lights', newLights);
+        newLights.splice(idx, 1);
+        this._config = { ...this._config, lights: newLights };
+        this._fireChanged();
+        row.remove();
+      });
+      header.appendChild(num);
+      header.appendChild(btnRemove);
+
+      // ha-form per entity, name, icon
+      const rowForm = document.createElement('ha-form');
+      rowForm.hass   = this._hass;
+      rowForm.schema = [
+        { name: 'entity', selector: { entity: { domain: 'light' } }, label: 'Entità luce' },
+        { name: 'name',   selector: { text: {} },                    label: 'Nome pulsante' },
+        { name: 'icon',   selector: { icon: {} },                    label: 'Icona' },
+      ];
+      rowForm.data = {
+        entity: light.entity || '',
+        name:   light.name   || '',
+        icon:   light.icon   || 'mdi:lightbulb',
+      };
+      rowForm.computeLabel = s => s.label;
+      rowForm.addEventListener('value-changed', e => {
+        e.stopPropagation();
+        const idx = [...list.children].indexOf(row);
+        const newLights = [...(this._config.lights || [])];
+        newLights[idx] = { ...newLights[idx], ...e.detail.value };
+        this._config = { ...this._config, lights: newLights };
+        // Aggiorna data del form senza re-render
+        rowForm.data = { ...rowForm.data, ...e.detail.value };
+        this._fireChanged();
       });
 
-      row.appendChild(num);
-      row.appendChild(inputs);
-      row.appendChild(btnRemove);
+      row.appendChild(header);
+      row.appendChild(rowForm);
       list.appendChild(row);
     });
   }
 
-
-  _updateLight(index, key, value) {
-    const lights = [...(this._config.lights || [])];
-    lights[index] = { ...lights[index], [key]: value };
-    this._changed('lights', lights);
-  }
-
-  _changed(key, value) {
-    if (!this._config) return;
-    this._config = { ...this._config, [key]: value };
+  _fireChanged() {
     this.dispatchEvent(new CustomEvent('config-changed', {
       detail: { config: this._config },
       bubbles: true, composed: true,
@@ -292,6 +211,7 @@ class LightCardEditor extends HTMLElement {
 }
 
 customElements.define('light-card-editor', LightCardEditor);
+
 
 
 // ─── CARD PRINCIPALE ──────────────────────────────────────────────────────────

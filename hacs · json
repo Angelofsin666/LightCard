@@ -1,8 +1,0 @@
-{
-  "name": "Light Card",
-  "description": "Custom Lovelace card for outdoor lights — animated SVG bulb, dynamic light list, global area toggle, zero dependencies.",
-  "render_readme": true,
-  "filename": "light-card.js",
-  "homeassistant": "2023.9.0",
-  "content_in_root": true
-}

@@ -13,7 +13,17 @@ class LightCardEditor extends HTMLElement {
   }
 
   setConfig(config) {
+    const prevLightCount = (this._config.lights || []).length;
+    const newLightCount  = (config.lights || []).length;
     this._config = { ...config };
+
+    // Se cambia solo il contenuto delle luci (non il numero),
+    // aggiorna solo i valori senza ricostruire il DOM
+    if (this._built && prevLightCount === newLightCount) {
+      this._updateLightValues();
+      this._updateStaticSelectors();
+      return;
+    }
     this._refresh();
   }
 
@@ -26,13 +36,6 @@ class LightCardEditor extends HTMLElement {
     if (!this._hass || !this._config) return;
     const c = this._config;
     const root = this.shadowRoot;
-
-    // Se _renderLights è in corso (selettore aperto), aggiorna solo i valori
-    // senza toccare il DOM della lista luci
-    if (this._updatingLight) {
-      this._updateLightValues();
-      return;
-    }
 
     if (!root.querySelector('.form')) {
       root.innerHTML = `
@@ -117,6 +120,7 @@ class LightCardEditor extends HTMLElement {
         const lights = [...(this._config.lights || []), { entity: '', name: '', icon: 'mdi:lightbulb' }];
         this._changed('lights', lights);
       });
+      this._built = true;
     }
 
     // Aggiorna selettori statici
@@ -152,6 +156,17 @@ class LightCardEditor extends HTMLElement {
       if (sels[1]) { sels[1].hass = this._hass; sels[1].value = lights[i].name   || ''; }
       if (sels[2]) { sels[2].hass = this._hass; sels[2].value = lights[i].icon   || 'mdi:lightbulb'; }
     });
+  }
+
+  _updateStaticSelectors() {
+    const c = this._config;
+    this._updateSelector('sel-name',     { text: {} },  'Nome card',                      c.name     || '');
+    this._updateSelector('sel-subtitle', { text: {} },  'Sottotitolo (es. Luci esterne)', c.subtitle || '');
+    this._updateSelector('sel-floor',    { floor: {} }, 'Piano / Area per toggle globale', c.floor_id || '');
+    const colorInput = this.shadowRoot.getElementById('color-input');
+    if (colorInput && document.activeElement !== colorInput) {
+      colorInput.value = c.color || '#f59e0b';
+    }
   }
 
   _setupSelector(id, selector, label, key) {
@@ -244,12 +259,9 @@ class LightCardEditor extends HTMLElement {
   }
 
   _updateLight(index, key, value) {
-    this._updatingLight = true;
     const lights = [...(this._config.lights || [])];
     lights[index] = { ...lights[index], [key]: value };
     this._changed('lights', lights);
-    // Reset flag dopo un tick, quando il selettore ha finito
-    setTimeout(() => { this._updatingLight = false; }, 100);
   }
 
   _changed(key, value) {

@@ -1,8 +1,9 @@
 {
   "name": "Light Card",
-  "description": "Custom Lovelace card for controlling light groups — animated SVG bulb, dynamic light list, global area toggle, zero dependencies.",
+  "description": "Custom Lovelace card for controlling light groups with animated SVG bulb, dynamic light list, global area toggle, zero dependencies.",
   "render_readme": true,
   "filename": "light-card.js",
+  "version": "1.1.0",
   "homeassistant": "2023.9.0",
   "content_in_root": true
 }
